@@ -1,0 +1,9 @@
+---
+
+# Deploy and Configure Applicaiton
+
+- hosts: all
+  become: true
+  become_method: sudo
+  roles:
+    - { role: provisioning }
