@@ -1,0 +1,67 @@
+---
+
+# Install required packages
+  - name: install packages
+    apt: update_cache=yes name="{{ item }}" state=present
+    with_items:
+      - apache2
+      - memcached
+      - openssl
+#      - python
+#      - python-pip
+      - php5
+      - php5-memcached
+
+# install python-memcached-stats module
+#  - name: install python-memcached-stats
+#    pip: name=python-memcached-stats
+
+# Ensure Apache is up and running
+  - name: ensure apache2 is running
+    service: name=apache2 state=started
+
+# Create required directories for installation
+  - name: create required directories
+    file: path={{ item }} state=directory owner=root group=root mode=0755
+    with_items:
+      - /var/www/app
+      - /etc/apache2/ssl
+
+# Configure Apache2 with SSL
+  - name: enable required modules in apache2
+    apache2_module: name={{ item }} state=present
+    with_items:
+      - ssl
+      - rewrite
+      - headers
+      - php5
+    notify: restart apache2
+
+  - name: install openssl certificates
+    command: >
+      openssl req -x509 -nodes -subj '/CN=localhost' -days 365 -newkey rsa:4096 -sha256 -keyout /etc/apache2/ssl/server.key -out /etc/apache2/ssl/server.crt creates=/etc/apache2/ssl/server.crt
+    notify: restart apache2
+
+# Install Application
+  - name: copy app.html
+    copy: src=var/www/app/index.php dest=/var/www/app/index.php owner=root group=root mode=0755
+
+  - name: Disable apache2 default site
+    file: path=/etc/apache2/sites-enabled/000-default.conf state=absent
+    notify: restart apache2
+
+  - name: install apache2 app.conf
+    copy: src=etc/apache2/sites-enabled/app.conf dest=/etc/apache2/sites-enabled/app.conf owner=root group=root mode=0644
+    notify: restart apache2
+
+  # Support PHP Execution
+  - name: install php.conf
+    copy: src=etc/apache2/sites-enabled/php.conf dest=/etc/apache2/sites-enabled/php.conf owner=root group=root mode=0644
+    notify: restart apache2
+
+# Setup Cron that runs once per minute
+  - name: copy exercise-memcached.sh script
+    copy: src=home/vagrant/exercise-memcached.sh dest=/home/vagrant/exercise-memcached.sh mode=0755 owner=vagrant group=vagrant
+
+  - name: install cron
+    cron: name="Vagrant CronJob" user=vagrant job=/home/vagrant/exercise-memcached.sh  
